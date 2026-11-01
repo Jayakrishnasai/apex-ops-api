@@ -100,7 +100,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          push: false
+          load: true
           tags: |
             ${{ env.IMAGE_NAME }}:${{ github.sha }}
             ${{ env.IMAGE_NAME }}:latest
@@ -108,7 +108,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Scan image for vulnerabilities (Trivy)
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@0.28.0
         with:
           image-ref: ${{ env.IMAGE_NAME }}:latest
           format: table
@@ -117,7 +117,10 @@ jobs:
 
       - name: Verify non-root execution
         run: |
-          # Load the image from the build cache so we can inspect it
-          docker load < /dev/null || true
-          echo "Non-root user verified in Dockerfile (USER appuser / UID 1001)"
-          grep -n "USER appuser" Dockerfile
+          USER_CONFIG=$(docker inspect ${{ env.IMAGE_NAME }}:latest --format '{{.Config.User}}')
+          echo "Container runtime user: $USER_CONFIG"
+          if [ "$USER_CONFIG" = "root" ] || [ -z "$USER_CONFIG" ]; then
+            echo "ERROR: Container is configured to run as root!"
+            exit 1
+          fi
+          echo "✓ Non-root user verified ($USER_CONFIG)"
