@@ -1,6 +1,8 @@
 # Verification & Execution Evidence
 
-**Apex Operations API — Junior DevOps Engineer Assessment**  
+**Candidate:** Jayakrishnasai ([koppolijayakrishnasai@gmail.com](mailto:koppolijayakrishnasai@gmail.com))  
+**GitHub Repository:** [https://github.com/Jayakrishnasai/apex-ops-api](https://github.com/Jayakrishnasai/apex-ops-api)  
+**Live CI Run Evidence:** [https://github.com/Jayakrishnasai/apex-ops-api/actions/runs/41279780913](https://github.com/Jayakrishnasai/apex-ops-api/actions/runs/41279780913)  
 **Assessment Requirement:** *"CI run evidence, deployment demo and rollback evidence. Claiming a successful deployment or test without evidence is a critical red flag."*
 
 ---
