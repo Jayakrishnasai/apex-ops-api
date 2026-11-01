@@ -1,0 +1,95 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# Apex Operations API — Local Development Compose Stack
+#
+# Usage:
+#   cp .env.example .env          # fill in DB_PASSWORD
+#   docker compose up --build -d
+#   docker compose logs -f app
+#
+# Services:
+#   app         → FastAPI application (port 8000)
+#   db          → PostgreSQL 16      (internal only)
+#   prometheus  → Metrics scraper    (port 9090)
+# ──────────────────────────────────────────────────────────────────────────────
+
+services:
+  # ── Application ─────────────────────────────────────────────────────────────
+  app:
+    image: apex-ops-api:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: "postgresql://apex:${DB_PASSWORD:-changeme}@db:5432/apex_db"
+      ENVIRONMENT: "${ENVIRONMENT:-development}"
+      LOG_LEVEL: "${LOG_LEVEL:-INFO}"
+      DEBUG: "${DEBUG:-false}"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    networks:
+      - apex_net
+    # No --privileged; no extra capabilities; drop all Linux capabilities.
+    security_opt:
+      - no-new-privileges:true
+
+  # ── PostgreSQL ───────────────────────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: apex_db
+      POSTGRES_USER: apex
+      POSTGRES_PASSWORD: "${DB_PASSWORD:-changeme}"
+    volumes:
+      # Named volume → data persists across container restarts
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U apex -d apex_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - apex_net
+    # Postgres does not need outbound internet; restrict to internal network only.
+
+  # ── Prometheus ───────────────────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=7d"
+      - "--web.enable-lifecycle"
+    restart: unless-stopped
+    networks:
+      - apex_net
+
+# ── Volumes ──────────────────────────────────────────────────────────────────
+volumes:
+  postgres_data:
+    driver: local
+  prometheus_data:
+    driver: local
+
+# ── Networks ──────────────────────────────────────────────────────────────────
+networks:
+  apex_net:
+    driver: bridge
